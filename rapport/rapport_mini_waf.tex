@@ -1,0 +1,803 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, backgrounds, calc, fit}
+
+\geometry{margin=2.5cm}
+
+% Couleurs
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{codeframe}{RGB}{200,200,200}
+\definecolor{keywordcolor}{RGB}{0,0,180}
+\definecolor{commentcolor}{RGB}{60,120,60}
+\definecolor{stringcolor}{RGB}{160,0,0}
+\definecolor{urlcolor}{RGB}{0,80,160}
+% Palette diagrammes
+\definecolor{wafblue}{RGB}{219,234,254}
+\definecolor{wafblueborder}{RGB}{59,130,246}
+\definecolor{logamber}{RGB}{254,243,199}
+\definecolor{logamberborder}{RGB}{217,119,6}
+\definecolor{endgreen}{RGB}{220,252,231}
+\definecolor{endgreenborder}{RGB}{34,197,94}
+\definecolor{datagray}{RGB}{243,244,246}
+\definecolor{datagrayborder}{RGB}{107,114,128}
+
+% Style des listings (code)
+\lstdefinestyle{code}{
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  breakatwhitespace=false,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=4,
+}
+\lstdefinestyle{bash}{
+  style=code,
+  language=bash,
+  keywordstyle=\color{keywordcolor}\bfseries,
+  commentstyle=\color{commentcolor},
+  stringstyle=\color{stringcolor},
+}
+\lstdefinestyle{monospace}{
+  style=code,
+  basicstyle=\ttfamily\footnotesize,
+}
+
+% Styles TikZ globaux
+\tikzset{
+  % Boîte composant WAF (bleu)
+  wafbox/.style={
+    rectangle, rounded corners=4pt,
+    draw=wafblueborder, fill=wafblue, thick,
+    minimum width=3.2cm, minimum height=1cm,
+    align=center, font=\small
+  },
+  % Boîte composant logging (orange)
+  logbox/.style={
+    rectangle, rounded corners=4pt,
+    draw=logamberborder, fill=logamber, thick,
+    minimum width=3.2cm, minimum height=1cm,
+    align=center, font=\small
+  },
+  % Boîte endpoint client/serveur (vert)
+  endbox/.style={
+    rectangle, rounded corners=4pt,
+    draw=endgreenborder, fill=endgreen, thick,
+    minimum width=3cm, minimum height=1cm,
+    align=center, font=\small
+  },
+  % Boîte données (gris)
+  databox/.style={
+    rectangle, rounded corners=3pt,
+    draw=datagrayborder, fill=datagray, thick,
+    minimum width=2cm, minimum height=0.7cm,
+    align=center, font=\small\ttfamily
+  },
+  % Boîte composant (diagramme de composants)
+  compbox/.style={
+    rectangle, rounded corners=4pt,
+    draw=wafblueborder, fill=wafblue, thick,
+    minimum width=3.5cm, minimum height=2.6cm,
+    align=left, font=\scriptsize\ttfamily, inner sep=8pt
+  },
+  compboxlog/.style={
+    rectangle, rounded corners=4pt,
+    draw=logamberborder, fill=logamber, thick,
+    minimum width=3.5cm, minimum height=2.6cm,
+    align=left, font=\scriptsize\ttfamily, inner sep=8pt
+  },
+  compboxend/.style={
+    rectangle, rounded corners=4pt,
+    draw=endgreenborder, fill=endgreen, thick,
+    minimum width=3.2cm, minimum height=2.2cm,
+    align=left, font=\scriptsize\ttfamily, inner sep=8pt
+  },
+  % Flèche standard
+  arr/.style={-{Stealth[length=7pt, width=4pt]}, thick},
+  % Label sur flèche
+  arrlbl/.style={font=\footnotesize, fill=white, inner sep=2pt},
+  % Acteur séquence
+  seqactor/.style={
+    rectangle, rounded corners=3pt,
+    draw=black!60, fill=white, thick,
+    minimum width=2.2cm, minimum height=0.75cm,
+    align=center, font=\small
+  },
+  % Lifeline
+  lifeline/.style={dashed, gray!50, thick},
+  % Message séquence
+  msg/.style={-{Stealth[length=6pt, width=3.5pt]}, thick},
+  % Annotation auto-appel
+  selfnote/.style={
+    rectangle, rounded corners=2pt,
+    draw=gray!50, fill=white,
+    font=\scriptsize\ttfamily, inner sep=3pt, align=left
+  },
+  % Flowchart process
+  flowproc/.style={
+    rectangle, rounded corners=5pt,
+    draw=wafblueborder, fill=wafblue, thick,
+    minimum width=5.5cm, minimum height=0.8cm,
+    align=center, font=\small
+  },
+  % Flowchart décision
+  flowdec/.style={
+    diamond, aspect=2.5,
+    draw=logamberborder, fill=logamber, thick,
+    minimum width=4cm, minimum height=1cm,
+    align=center, font=\small
+  },
+  % Flowchart terminal
+  flowterm/.style={
+    rectangle, rounded corners=5pt,
+    draw=endgreenborder, fill=endgreen, thick,
+    minimum width=5.5cm, minimum height=0.7cm,
+    align=center, font=\small
+  },
+}
+
+% En-têtes et pieds de page
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Projet Réseaux Avancés --- Mini-WAF}
+\lhead{Baptiste Sibellas}
+\rfoot{\thepage}
+
+% Liens hypertexte
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  urlcolor=urlcolor,
+  citecolor=black,
+}
+
+% Espacement des sections
+\titlespacing*{\section}{0pt}{1.5em}{0.5em}
+\titlespacing*{\subsection}{0pt}{1em}{0.3em}
+
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{document}
+
+% Page de titre
+\begin{titlepage}
+  \centering
+
+  %% ── Logos (remplacer logo1/logo2/logo3 par les vrais noms de fichiers) ──
+  \newcommand{\logoheight}{2cm}
+  \newcommand{\logoplaceholder}[1]{%
+    \begin{tikzpicture}
+      \draw[gray!50, dashed, thick] (0,0) rectangle (3.8,\logoheight);
+      \node[gray!70, font=\small] at (1.9,1) {#1};
+    \end{tikzpicture}%
+  }
+
+  \noindent
+  \begin{minipage}[c]{0.3\linewidth}
+    \centering
+    \includegraphics[height=\logoheight]{tn.png}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.3\linewidth}
+    \centering
+    \includegraphics[height=\logoheight]{inp.png}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.3\linewidth}
+    \centering
+    \includegraphics[height=\logoheight]{ul.png}
+  \end{minipage}
+
+  \vfill
+
+  {\LARGE\bfseries Rapport --- Mini Web Application Firewall (WAF) en C\par}
+  \vspace{1.2cm}
+  {\large Projet Réseaux Avancés\par}
+  \vspace{0.6cm}
+  \rule{0.6\linewidth}{0.4pt}
+  \vspace{0.6cm}
+
+  \begin{tabular}{ll}
+    \textbf{Auteurs}        & Schoser Camille -- Sibellas Baptiste \\
+    \textbf{Enseignant}       & Badonnel Rémi \\
+    \textbf{Date de rendu} & 8 mai 2026 \\
+    \textbf{Langage}       & C (C99/C11), POSIX sockets, pthreads \\
+  \end{tabular}
+
+  \vfill
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Introduction}
+
+\subsection{Qu'est-ce qu'un WAF ?}
+
+Un \textbf{Web Application Firewall (WAF)} est un dispositif de sécurité qui filtre et surveille le trafic HTTP entre un client et un serveur web. Contrairement à un pare-feu réseau classique qui travaille au niveau des couches 3 et 4 du modèle OSI (adresses IP, ports), le WAF opère au niveau applicatif (couche 7). Il est capable d'inspecter le contenu des requêtes HTTP --- URL, paramètres, corps de requête --- et de bloquer les attaques applicatives avant qu'elles n'atteignent le serveur.
+
+Les menaces que cible un WAF sont celles référencées dans l'\textbf{OWASP Top 10}, notamment :
+
+\begin{itemize}
+  \item \textbf{Injection SQL (SQLi)} : insertion de code SQL malveillant dans des paramètres d'entrée pour manipuler la base de données.
+  \item \textbf{Cross-Site Scripting (XSS)} : injection de scripts JavaScript dans des pages web pour détourner les sessions utilisateur.
+  \item \textbf{Path Traversal} : utilisation de séquences \texttt{../} pour accéder à des fichiers système en dehors de la racine web.
+  \item \textbf{Injection de commandes} : exécution de commandes système via des paramètres non filtrés.
+\end{itemize}
+
+\subsection{Objectifs du projet}
+
+Ce projet consiste à implémenter un \textbf{mini-WAF sous forme de proxy TCP en C pur}. L'objectif pédagogique est de comprendre et de mettre en pratique :
+
+\begin{itemize}
+  \item La programmation réseau avec les sockets POSIX (TCP).
+  \item Le multiplexage d'entrées/sorties avec \texttt{select()}.
+  \item La gestion de la concurrence avec \texttt{pthread}.
+  \item L'inspection de contenu HTTP au niveau applicatif.
+  \item La journalisation thread-safe.
+\end{itemize}
+
+\subsection{Technologies utilisées}
+
+\begin{tabularx}{\linewidth}{lX}
+  \toprule
+  \textbf{Technologie} & \textbf{Rôle} \\
+  \midrule
+  C99/C11 & Langage d'implémentation \\
+  POSIX sockets (\texttt{socket}, \texttt{bind}, \texttt{listen}, \texttt{accept}, \texttt{connect}) & Communication TCP \\
+  \texttt{select()} & Multiplexage I/O dans le relay et le logserver \\
+  \texttt{pthread} (POSIX Threads) & Concurrence --- un thread par connexion client et par listener \\
+  \texttt{pthread\_mutex\_t} & Protection des écritures concurrentes dans le log et la liste SSE \\
+  \texttt{strcasestr()} & Recherche de motifs insensible à la casse \\
+  \texttt{time()} / \texttt{strftime()} & Horodatage des entrées de log \\
+  Server-Sent Events (SSE) & Streaming temps réel des logs vers le navigateur \\
+  \bottomrule
+\end{tabularx}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Architecture du mini-WAF}
+
+\subsection{Topologie réseau}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=2.6cm and 3.2cm]
+  % Noeuds
+  \node[wafbox] (client)    {Client HTTP};
+  \node[wafbox, right=of client] (waf) {WAF\\\texttt{\small :8080}};
+  \node[endbox, right=of waf] (server) {Serveur Web\\\texttt{\small :8888}};
+  \node[logbox, below=of waf] (logserver) {LogServer\\\texttt{\small :9091 / :9090}};
+  \node[databox, right=2.2cm of logserver] (logfile) {waf.log};
+  \node[endbox, below=of logserver] (nav) {Navigateur};
+
+  % Flèches
+  \draw[arr] (client) -- node[arrlbl, above]{TCP :8080} (waf);
+  \draw[arr] (waf)    -- node[arrlbl, above]{TCP :8888} (server);
+  \draw[arr] (waf)    -- node[arrlbl, right]{TCP :9091} (logserver);
+  \draw[arr] (logserver) -- node[arrlbl, above]{append} (logfile);
+  \draw[arr] (logserver) -- node[arrlbl, right]{HTTP :9090 (SSE)} (nav);
+\end{tikzpicture}
+\caption{Topologie réseau du mini-WAF}
+\end{figure}
+
+Le WAF est positionné \textbf{en coupure} : le client ne connaît que le WAF (port 8080) et ignore l'existence du serveur backend (port 8888). Le WAF joue donc le double rôle de \textbf{serveur} (vis-à-vis du client) et de \textbf{client} (vis-à-vis du backend et du logserver).
+
+\subsection{Diagramme de composants}
+
+% \clearpage
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+
+  %% ── Ligne 1 : client / waf / server ──────────────────────────────────
+  \node[compboxend] (client) at (0, 0) {
+    \textbf{src/client.c}\\[4pt]
+    -- forge requête\\
+    -- affiche réponse\\
+    -- retourne 0/1/2
+  };
+  \node[compbox] (waf) at (4.6, 0) {
+    \textbf{src/waf.c}\\[4pt]
+    -- accept()\\
+    -- handle\_client()\\
+    -- relay()
+  };
+  \node[compboxend] (server) at (9.2, 0) {
+    \textbf{src/server.c}\\[4pt]
+    -- HTTP 200 OK\\
+    -- corps HTML fixe
+  };
+
+  %% ── Ligne 2 : filter / logger ────────────────────────────────────────
+  \node[compbox] (filter) at (2, -4.2) {
+    \textbf{src/filter.c}\\[4pt]
+    -- filter\_simple()\\
+    -- filter\_advanced()\\
+    -- should\_block()
+  };
+  \node[compboxlog] (logger) at (7.2, -4.2) {
+    \textbf{src/logger.c}\\[4pt]
+    -- logger\_init()\\
+    -- logger\_log()\\
+    -- logger\_close()
+  };
+
+  %% ── Ligne 3 : rules / logserver / waf.log ────────────────────────────
+  \node[databox] (rules) at (2, -7.2) {
+    \textbf{rules/}\\*.txt
+  };
+  \node[compboxlog] (logserver) at (7.2, -7.6) {
+    \textbf{src/logserver.c}\\[4pt]
+    -- log\_listener()\\
+    -- http\_listener()\\
+    -- broadcast\_sse()\\
+    -- write\_log()
+  };
+  \node[databox] (logfile) at (11.4, -7.6) {waf.log};
+  \node[databox] (nav) at (7.2, -11.0) {Navigateur (SSE)};
+
+  %% ── Flèches ──────────────────────────────────────────────────────────
+  \draw[arr] (client)    -- (waf);
+  \draw[arr] (waf)       -- (server);
+  \draw[arr] (waf.south) -- ++(0,-0.5) -| (filter.north);
+  \draw[arr] (waf.south) -- ++(0,-0.5) -| (logger.north);
+  \draw[arr] (filter)    -- (rules);
+  \draw[arr] (logger)    -- node[arrlbl, right]{\scriptsize TCP :9091} (logserver);
+  \draw[arr] (logserver) -- (logfile);
+  \draw[arr] (logserver) -- (nav);
+
+\end{tikzpicture}
+\caption{Diagramme de composants du mini-WAF}
+\end{figure}
+
+\subsection{Diagramme de séquence --- Requête légitime}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+
+  %% ── Positions X des acteurs ──────────────────────────────────────────
+  \def\xC{0}    % Client
+  \def\xW{3}    % WAF
+  \def\xS{6}    % Serveur
+  \def\xL{9.2}  % LogServer
+  \def\xN{12.4} % Navigateur
+
+  %% ── Boîtes acteurs ───────────────────────────────────────────────────
+  \node[seqactor] at (\xC, 0) {Client};
+  \node[seqactor] at (\xW, 0) {WAF};
+  \node[seqactor] at (\xS, 0) {Serveur};
+  \node[seqactor] at (\xL, 0) {LogServer};
+  \node[seqactor] at (\xN, 0) {Navigateur};
+
+  %% ── Lifelines ────────────────────────────────────────────────────────
+  \foreach \x in {\xC, \xW, \xS, \xL, \xN}
+    \draw[lifeline] (\x, -0.38) -- (\x, -9.6);
+
+  %% ── Messages ─────────────────────────────────────────────────────────
+  % 1. Client -> WAF
+  \draw[msg] (\xC,-1.2) -- (\xW,-1.2)
+    node[arrlbl, midway, above]{\scriptsize TCP :8080};
+  \draw[msg] (\xC,-1.8) -- (\xW,-1.8)
+    node[arrlbl, midway, above]{\scriptsize\ttfamily GET / HTTP/1.0};
+
+  % 2. Annotation WAF : filter
+  \node[selfnote, anchor=west] at (\xW+0.15, -2.6)
+    {filter() = 0};
+  \draw[gray!50, thick] (\xW,-2.6) -- ++(0.12,0);
+
+  % 3. WAF -> Serveur
+  \draw[msg] (\xW,-3.4) -- (\xS,-3.4)
+    node[arrlbl, midway, above]{\scriptsize TCP :8888};
+  \draw[msg] (\xW,-4.0) -- (\xS,-4.0)
+    node[arrlbl, midway, above]{\scriptsize\ttfamily GET /};
+
+  % 4. Serveur -> WAF
+  \draw[msg] (\xS,-4.8) -- (\xW,-4.8)
+    node[arrlbl, midway, above]{\scriptsize\ttfamily 200 OK};
+
+  % 5. WAF -> Client
+  \draw[msg] (\xW,-5.6) -- (\xC,-5.6)
+    node[arrlbl, midway, above]{\scriptsize\ttfamily 200 OK};
+
+  % 6. WAF -> LogServer
+  \draw[msg] (\xW,-6.6) -- (\xL,-6.6)
+    node[arrlbl, midway, above]{\scriptsize logger\_log() / TCP :9091};
+
+  % 7. Annotation LogServer : write_log
+  \node[selfnote, anchor=west] at (\xL+0.15, -7.4)
+    {write\_log()};
+  \draw[gray!50, thick] (\xL,-7.4) -- ++(0.12,0);
+
+  % 8. LogServer -> Navigateur
+  \draw[msg] (\xL,-8.4) -- (\xN,-8.4)
+    node[arrlbl, midway, above]{\scriptsize broadcast\_sse() / SSE};
+
+\end{tikzpicture}
+\caption{Diagramme de séquence --- Requête légitime}
+\end{figure}
+
+\subsection{Diagramme de séquence --- Requête bloquée}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+
+  %% ── Positions X des acteurs ──────────────────────────────────────────
+  \def\xC{0}    % Client
+  \def\xW{3.5}  % WAF
+  \def\xL{7.5}  % LogServer
+  \def\xN{11.5} % Navigateur
+
+  %% ── Boîtes acteurs ───────────────────────────────────────────────────
+  \node[seqactor] at (\xC, 0) {Client};
+  \node[seqactor] at (\xW, 0) {WAF};
+  \node[seqactor] at (\xL, 0) {LogServer};
+  \node[seqactor] at (\xN, 0) {Navigateur};
+
+  %% ── Lifelines ────────────────────────────────────────────────────────
+  \foreach \x in {\xC, \xW, \xL, \xN}
+    \draw[lifeline] (\x, -0.38) -- (\x, -8.0);
+
+  %% ── Messages ─────────────────────────────────────────────────────────
+  % 1. Client -> WAF
+  \draw[msg] (\xC,-1.2) -- (\xW,-1.2)
+    node[arrlbl, midway, above]{\scriptsize TCP :8080};
+  \draw[msg] (\xC,-1.8) -- (\xW,-1.8)
+    node[arrlbl, midway, above]{\scriptsize\ttfamily GET /?q=<script>...};
+
+  % 2. Annotation WAF : filter détecte
+  \node[selfnote, anchor=west] at (\xW+0.15, -2.7)
+    {filter\_simple() = 1};
+  \draw[gray!50, thick] (\xW,-2.7) -- ++(0.12,0);
+
+  % 3. WAF -> Client : 403
+  \draw[msg] (\xW,-3.7) -- (\xC,-3.7)
+    node[arrlbl, midway, above]{\scriptsize\ttfamily 403 Forbidden};
+
+  % 4. WAF -> LogServer
+  \draw[msg] (\xW,-4.8) -- (\xL,-4.8)
+    node[arrlbl, midway, above]{\scriptsize logger\_log() / TCP :9091};
+
+  % 5. Annotation LogServer : write_log
+  \node[selfnote, anchor=west] at (\xL+0.15, -5.7)
+    {write\_log()};
+  \draw[gray!50, thick] (\xL,-5.7) -- ++(0.12,0);
+
+  % 6. LogServer -> Navigateur
+  \draw[msg] (\xL,-6.8) -- (\xN,-6.8)
+    node[arrlbl, midway, above]{\scriptsize broadcast\_sse() / SSE};
+
+\end{tikzpicture}
+\caption{Diagramme de séquence --- Requête bloquée}
+\end{figure}
+
+\subsection{Cycle de vie d'une connexion}
+
+\clearpage
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.7cm]
+
+  \node[flowproc] (accept)   {\texttt{accept()} --- nouvelle connexion};
+  \node[flowproc, below=of accept] (create) {\texttt{pthread\_create(handle\_client)}};
+  \node[flowproc, below=of create] (recv)   {\texttt{recv()} --- lecture requête jusqu'à \texttt{\textbackslash r\textbackslash n\textbackslash r\textbackslash n}};
+  \node[flowproc, below=of recv]   (parse)  {Extraction de la première ligne HTTP};
+  \node[flowdec,  below=0.9cm of parse] (dec) {\texttt{should\_block()} ?};
+
+  % Branche OUI (gauche)
+  \node[flowterm, below left=1.4cm and 1.6cm of dec] (block)
+    {\texttt{send(403)} \\ \texttt{logger\_log(BLOCKED)} \\ \texttt{close(client\_fd)}};
+
+  % Branche NON (droite)
+  \node[flowterm, below right=1.4cm and 1.6cm of dec] (allow)
+    {\texttt{connect(server)} \\ \texttt{relay()} \\ \texttt{logger\_log(ALLOWED)} \\ \texttt{close(client\_fd, server\_fd)}};
+
+  % Point de jonction
+  \node[flowproc, below=8cm of dec] (exit) {Thread exit (\texttt{pthread\_detach})};
+
+  %% ── Flèches verticales principales ───────────────────────────────────
+  \draw[arr] (accept) -- (create);
+  \draw[arr] (create) -- (recv);
+  \draw[arr] (recv)   -- (parse);
+  \draw[arr] (parse)  -- (dec);
+
+  %% ── Branches de la décision ──────────────────────────────────────────
+  \draw[arr] (dec.west) -| node[arrlbl, near start, above]{\textbf{OUI}} (block.north);
+  \draw[arr] (dec.east) -| node[arrlbl, near start, above]{\textbf{NON}} (allow.north);
+
+  %% ── Convergence vers exit ────────────────────────────────────────────
+  \draw[arr] (block.south) |- (exit.west);
+  \draw[arr] (allow.south) |- (exit.east);
+
+\end{tikzpicture}
+\caption{Cycle de vie d'une connexion dans le WAF}
+\end{figure}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Implémentation}
+
+\subsection{Gestion de la concurrence --- pthreads vs select()}
+
+\textbf{Choix retenu : pthreads pour les connexions, select() pour le relay.}
+
+À chaque \texttt{accept()}, un thread est créé via \texttt{pthread\_create()} et immédiatement détaché avec \texttt{pthread\_detach()}. Le détachement signifie que le thread libère automatiquement ses ressources à la fin de son exécution, sans qu'aucun thread parent n'ait besoin de faire \texttt{pthread\_join()}. Cela évite les fuites mémoire dans une boucle infinie d'acceptation.
+
+Ce choix est justifié par la lisibilité : chaque connexion est traitée de manière isolée dans sa propre pile d'exécution, sans état partagé (hormis le logger protégé par mutex).
+
+Un design alternatif aurait utilisé \texttt{select()} ou \texttt{epoll()} pour tout gérer dans un seul thread (modèle event-driven). Cela serait plus performant à grande échelle, mais plus complexe à déboguer.
+
+\subsection{Moteur de filtrage}
+
+Le filtrage est séparé en deux couches :
+
+\textbf{\texttt{filter\_simple()}} --- 8 patterns codés en dur, insensibles à la casse via \texttt{strcasestr()} (extension GNU) :
+
+\begin{tabular}{ll}
+  \toprule
+  \textbf{Pattern} & \textbf{Attaque} \\
+  \midrule
+  \texttt{<script}      & XSS \\
+  \texttt{../}          & Path traversal \\
+  \texttt{OR 1=1}       & SQLi \\
+  \texttt{DROP TABLE}   & SQLi \\
+  \texttt{UNION SELECT} & SQLi \\
+  \texttt{alert(}       & XSS \\
+  \texttt{javascript:}  & XSS \\
+  \texttt{exec(}        & Command injection \\
+  \bottomrule
+\end{tabular}
+
+\vspace{0.8em}
+
+\textbf{\texttt{filter\_advanced()}} --- Chargement paresseux (\textit{lazy loading}) des fichiers \texttt{rules/simple\_patterns.txt} et \texttt{rules/blocked\_urls.txt} au premier appel. Chaque ligne non-vide et non-commentaire (ne commençant pas par \texttt{\#}) est stockée dans un tableau statique de 256 entrées maximum. La recherche est également insensible à la casse.
+
+\textbf{\texttt{should\_block()}} --- Appelle les deux filtres avec court-circuit : si \texttt{filter\_simple} retourne 1, \texttt{filter\_advanced} n'est pas évalué.
+
+\subsection{Relay bidirectionnel}
+
+La fonction \texttt{relay(int client\_fd, int server\_fd)} transfère les données dans les deux sens entre le client et le serveur backend, jusqu'à ce qu'une des connexions soit fermée.
+
+\texttt{select()} est utilisé ici car il permet de surveiller simultanément les deux file descriptors sans bloquer sur l'un d'eux. Sans \texttt{select()}, un \texttt{recv()} bloquant sur \texttt{server\_fd} empêcherait de traiter des données arrivant de \texttt{client\_fd}, et inversement.
+
+\subsection{Journalisation centralisée --- logserver}
+
+L'architecture de journalisation a été repensée pour séparer la \textbf{production} des entrées de log (côté WAF) de leur \textbf{persistance} et \textbf{diffusion} (côté logserver).
+
+\textbf{Côté WAF (\texttt{src/logger.c})} --- \texttt{logger\_log()} formate la ligne horodatée puis l'envoie via une connexion TCP persistante vers le logserver (port 9091). Un \texttt{pthread\_mutex\_t} protège le socket partagé entre les threads du WAF. En cas de déconnexion, une reconnexion automatique est tentée avant chaque envoi.
+
+\textbf{Côté logserver (\texttt{src/logserver.c})} --- deux listeners tournent en parallèle dans des threads distincts :
+
+\begin{itemize}
+  \item \texttt{log\_listener()} (port 9091) : accepte les connexions du WAF, lit les lignes reçues octet par octet pour reconstituer des entrées complètes, appelle \texttt{write\_log()} puis \texttt{broadcast\_sse()}.
+  \item \texttt{http\_listener()} (port 9090) : sert \texttt{GET /} (page HTML) et \texttt{GET /events} (flux SSE). Les clients SSE sont stockés dans un tableau global \texttt{sse\_fds[]} protégé par mutex.
+\end{itemize}
+
+\textbf{Persistance} : \texttt{write\_log()} ouvre \texttt{waf.log} en mode \textbf{append} (\texttt{fopen("a")}). Le fichier n'est jamais réécrit entre deux lancements du logserver ; les entrées s'accumulent indéfiniment.
+
+\textbf{Interface web temps réel} : quand un navigateur ouvre \url{http://localhost:9090/events}, le logserver envoie d'abord l'historique complet du fichier (relecture de \texttt{waf.log} ligne par ligne), puis maintient la connexion ouverte. Chaque nouvel appel à \texttt{broadcast\_sse()} pousse une trame SSE (\texttt{data: <ligne>\textbackslash n\textbackslash n}) à tous les clients connectés. Les entrées BLOCKED s'affichent en rouge, ALLOWED en vert.
+
+Format d'une entrée :
+
+\begin{lstlisting}[style=monospace]
+[YYYY-MM-DD HH:MM:SS] ALLOWED | 127.0.0.1 | GET / HTTP/1.0
+\end{lstlisting}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Documentation utilisateur et règles de filtrage}
+
+\subsection{Compilation et lancement}
+
+\begin{lstlisting}[style=bash]
+# Compilation (sans warning)
+make
+
+# Demarrer dans cet ordre (logserver doit etre pret avant le WAF)
+./logserver &   # Ports 9091 (log) et 9090 (web)
+./server &      # Port 8888
+./waf &         # Port 8080, proxy vers 8888
+sleep 1
+
+# Observer les logs en direct (optionnel)
+# Ouvrir http://localhost:9090 dans un navigateur
+
+# Lancer les tests
+bash tests/test_legitimate.sh
+bash tests/test_attacks.sh
+bash tests/test_concurrent.sh
+
+# Consulter le log brut
+cat waf.log
+\end{lstlisting}
+
+\subsection{Fichier waf.log}
+
+Le fichier est créé dans le \textbf{répertoire courant} au lancement du \textbf{logserver} (mode append). Il n'est jamais réécrit entre deux sessions : les entrées s'accumulent. C'est le logserver --- et lui seul --- qui écrit dans ce fichier, évitant tout accès concurrent non contrôlé entre processus.
+
+Chaque ligne suit le format :
+
+\begin{lstlisting}[style=monospace]
+[YYYY-MM-DD HH:MM:SS] ALLOWED|BLOCKED | <IP client> | <premiere ligne HTTP>
+\end{lstlisting}
+
+\subsection{Tableau complet des règles actives}
+
+\begin{tabularx}{\linewidth}{llX}
+  \toprule
+  \textbf{Motif} & \textbf{Type d'attaque} & \textbf{Source} \\
+  \midrule
+  \texttt{<script}        & XSS                    & filter\_simple (codé en dur) \\
+  \texttt{../}            & Path traversal         & filter\_simple (codé en dur) \\
+  \texttt{OR 1=1}         & SQL Injection          & filter\_simple (codé en dur) \\
+  \texttt{DROP TABLE}     & SQL Injection          & filter\_simple (codé en dur) \\
+  \texttt{UNION SELECT}   & SQL Injection          & filter\_simple (codé en dur) \\
+  \texttt{alert(}         & XSS                    & filter\_simple (codé en dur) \\
+  \texttt{javascript:}    & XSS                    & filter\_simple (codé en dur) \\
+  \texttt{exec(}          & Command injection      & filter\_simple (codé en dur) \\
+  \texttt{passwd}         & Accès fichier sensible & rules/simple\_patterns.txt \\
+  \texttt{/etc/shadow}    & Accès fichier sensible & rules/simple\_patterns.txt \\
+  \texttt{base64\_decode} & Obfuscation de payload & rules/simple\_patterns.txt \\
+  \texttt{eval(}          & Injection de code      & rules/simple\_patterns.txt \\
+  \texttt{/admin}         & Accès non autorisé     & rules/blocked\_urls.txt \\
+  \texttt{/phpmyadmin}    & Accès non autorisé     & rules/blocked\_urls.txt \\
+  \texttt{/.env}          & Exposition de config.  & rules/blocked\_urls.txt \\
+  \texttt{/wp-admin}      & Accès non autorisé     & rules/blocked\_urls.txt \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Ajouter une nouvelle règle}
+
+Il suffit d'ajouter une ligne dans \texttt{rules/simple\_patterns.txt} ou \texttt{rules/blocked\_urls.txt}. Les commentaires commencent par \texttt{\#}. Le WAF relit les fichiers au prochain démarrage (le chargement est effectué une seule fois par processus).
+
+Exemple --- bloquer les tentatives d'accès à phpinfo :
+
+\begin{lstlisting}[style=bash]
+# dans rules/blocked_urls.txt
+/phpinfo.php
+\end{lstlisting}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Tests et résultats}
+
+\subsection{Tableau récapitulatif}
+
+\begin{longtable}{clccl}
+  \toprule
+  \textbf{\#} & \textbf{Requête} & \textbf{Attendu} & \textbf{Obtenu} & \textbf{Statut} \\
+  \midrule
+  \endfirsthead
+  \toprule
+  \textbf{\#} & \textbf{Requête} & \textbf{Attendu} & \textbf{Obtenu} & \textbf{Statut} \\
+  \midrule
+  \endhead
+  1  & \texttt{GET /}                                     & 200          & 200          & PASS \\
+  2  & \texttt{GET /index.html}                           & 200          & 200          & PASS \\
+  3  & \texttt{GET /about?name=John}                      & 200          & 200          & PASS \\
+  4  & \texttt{POST /form} (data normale)                 & 200          & 200          & PASS \\
+  5  & \texttt{GET /?q=<script>alert(1)</script>}         & 403          & 403          & PASS \\
+  6  & \texttt{GET /?q=alert(xss)}                        & 403          & 403          & PASS \\
+  7  & \texttt{GET /?url=javascript:void(0)}              & 403          & 403          & PASS \\
+  8  & \texttt{GET /?id=1 OR 1=1}                         & 403          & 403          & PASS \\
+  9  & \texttt{GET /?q=DROP TABLE users}                  & 403          & 403          & PASS \\
+  10 & \texttt{GET /?q=UNION SELECT * FROM users}         & 403          & 403          & PASS \\
+  11 & \texttt{GET /../../etc/passwd}                     & 403          & 403          & PASS \\
+  12 & \texttt{GET /?cmd=exec(ls)}                        & 403          & 403          & PASS \\
+  13 & \texttt{GET /admin}                                & 403          & 403          & PASS \\
+  14 & \texttt{GET /phpmyadmin}                           & 403          & 403          & PASS \\
+  15 & \texttt{GET /.env}                                 & 403          & 403          & PASS \\
+  16 & \texttt{GET /wp-admin}                             & 403          & 403          & PASS \\
+  17 & \texttt{GET /?file=passwd}                         & 403          & 403          & PASS \\
+  18 & \texttt{GET /?q=base64\_decode(xyz)}               & 403          & 403          & PASS \\
+  19 & \texttt{GET /?q=eval(code)}                        & 403          & 403          & PASS \\
+  20 & 5 clients \texttt{GET /} simultanés                & 5$\times$200 & 5$\times$200 & PASS \\
+  \bottomrule
+\end{longtable}
+
+\textbf{Résultat global : 20/20 cas passés.}
+
+\subsection{Capture de waf.log après exécution}
+
+\begin{lstlisting}[style=monospace]
+[2026-05-07 22:05:44] ALLOWED | 127.0.0.1 | GET / HTTP/1.0
+[2026-05-07 22:05:44] ALLOWED | 127.0.0.1 | GET / HTTP/1.0
+[2026-05-07 22:05:44] ALLOWED | 127.0.0.1 | GET / HTTP/1.0
+[2026-05-07 22:05:44] ALLOWED | 127.0.0.1 | GET / HTTP/1.0
+[2026-05-07 22:05:44] ALLOWED | 127.0.0.1 | GET / HTTP/1.0
+\end{lstlisting}
+
+Les 5 entrées ALLOWED à la même seconde confirment le traitement concurrent sans deadlock.
+
+\subsection{Test de concurrence}
+
+Le test \texttt{tests/test\_concurrent.sh} lance 5 processus \texttt{./client} en arrière-plan avec \texttt{\&} et attend leur terminaison avec \texttt{wait}. Le WAF crée un thread par connexion entrante ; le mutex du logger garantit que les 5 écritures dans \texttt{waf.log} se font sans interférence.
+
+\subsection{Limites et pistes d'amélioration}
+
+\textbf{Limites observées :}
+
+\begin{itemize}
+  \item \textbf{Faux positifs} : le pattern \texttt{passwd} bloque tout URL ou paramètre contenant cette chaîne, y compris des usages légitimes (ex. : \texttt{?action=changepassword}).
+  \item \textbf{Taille de buffer fixe} : les requêtes dépassant 8\,192 octets sont tronquées ; des payloads fragmentés sur plusieurs segments TCP pourraient échapper au filtrage.
+  \item \textbf{Chargement des règles non rechargeable à chaud} : modifier \texttt{rules/*.txt} nécessite un redémarrage du WAF.
+  \item \textbf{Un thread par connexion} : ne passe pas à l'échelle pour des milliers de connexions simultanées (préférer \texttt{epoll} + pool de threads).
+  \item \textbf{Pas de TLS} : le WAF inspecte uniquement du HTTP en clair.
+\end{itemize}
+
+\textbf{Pistes d'amélioration :}
+
+\begin{itemize}
+  \item Implémenter un rechargement des règles via signal SIGUSR1.
+  \item Ajouter un mode liste blanche (allowlist) pour certains chemins.
+  \item Journaliser le corps complet de la requête bloquée pour faciliter l'audit.
+  \item Utiliser des expressions régulières (POSIX \texttt{regcomp}/\texttt{regexec}) pour des règles plus expressives.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Conclusion}
+
+\subsection{Bilan pédagogique}
+
+Ce projet a permis de mettre en œuvre de manière concrète les concepts fondamentaux des réseaux : sockets TCP, multiplexage I/O avec \texttt{select()}, concurrence avec \texttt{pthread} et mutex. L'implémentation d'un proxy applicatif illustre la différence entre filtrage réseau et filtrage applicatif, et montre pourquoi les pare-feux classiques sont insuffisants face aux attaques de couche 7.
+
+La modularisation du code en composants distincts (\texttt{filter}, \texttt{logger}, \texttt{waf}, \texttt{logserver}) reflète les bonnes pratiques de développement système et facilite l'évolution indépendante de chaque module. Le découplage entre la production des logs (WAF) et leur persistance/diffusion (logserver) illustre le pattern \textbf{producteur--consommateur} appliqué à la journalisation réseau. L'utilisation des Server-Sent Events pour l'interface web démontre qu'un protocole de streaming temps réel peut être implémenté en C pur sans bibliothèque externe.
+
+\subsection{Comparaison avec des WAF industriels}
+
+\begin{tabularx}{\linewidth}{lXXX}
+  \toprule
+  \textbf{Critère} & \textbf{Mini-WAF (ce projet)} & \textbf{ModSecurity} & \textbf{Cloudflare WAF} \\
+  \midrule
+  Règles             & Patterns texte simples    & SecRule (PCRE)            & Règles managées + ML \\
+  Performance        & $\sim$5 clients simultanés & Milliers de req/s        & Millions de req/s \\
+  TLS                & Non                       & Oui (Apache/Nginx)        & Oui \\
+  Mise à jour règles & Redémarrage               & Rechargement à chaud      & Temps réel \\
+  Faux positifs      & Élevés                    & Configurables             & Faibles (ML) \\
+  Journalisation     & Logserver TCP + fichier   & Fichier local             & Dashboard cloud \\
+  Monitoring         & Web SSE (port 9090)       & ModSecurity Console       & Dashboard Cloudflare \\
+  Déploiement        & Local uniquement          & Module Apache/Nginx       & Cloud CDN \\
+  \bottomrule
+\end{tabularx}
+
+\vspace{0.8em}
+
+ModSecurity (\url{https://modsecurity.org}) est le WAF open-source de référence, intégré à Apache et Nginx, et utilisant le langage de règles \textbf{SecRule} basé sur des expressions régulières PCRE. Cloudflare WAF (\url{https://www.cloudflare.com/fr-fr/application-services/products/waf/}) opère au niveau du CDN et intègre des mécanismes d'apprentissage automatique pour réduire les faux positifs. Notre mini-WAF est fonctionnellement analogue dans ses principes (proxy TCP + inspection de contenu), mais sans la performance ni la sophistication de ces solutions.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Références}
+
+\begin{itemize}
+  \item OWASP ModSecurity : \url{https://modsecurity.org}
+  \item Cloudflare WAF : \url{https://www.cloudflare.com/fr-fr/application-services/products/waf/}
+  \item MDN --- Server-Sent Events : \url{https://developer.mozilla.org/fr/docs/Web/API/Server-sent_events}
+  \item Man pages :
+  \begin{itemize}
+    \item \texttt{socket(7)} --- API sockets POSIX
+    \item \texttt{pthread\_create(3)} --- création de threads
+    \item \texttt{select(2)} --- multiplexage I/O
+    \item \texttt{strcasestr(3)} --- recherche insensible à la casse
+    \item \texttt{strftime(3)} --- formatage de dates
+    \item \texttt{send(2)} --- \texttt{MSG\_NOSIGNAL} pour éviter SIGPIPE sur socket fermé
+  \end{itemize}
+\end{itemize}
+
+\end{document}

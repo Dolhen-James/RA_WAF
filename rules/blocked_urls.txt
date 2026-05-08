@@ -1,0 +1,5 @@
+# URLs interdites
+/admin
+/phpmyadmin
+/.env
+/wp-admin

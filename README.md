@@ -1,70 +1,134 @@
 # Projet : Mini Web Application Firewall (WAF)
 
-Ce projet est un proxy de sécurité TCP écrit en C. Il intercepte les requêtes HTTP pour filtrer les attaques applicatives avant qu'elles n'atteignent le serveur web cible.
+Proxy de sécurité TCP écrit en C. Intercepte les requêtes HTTP pour filtrer les attaques applicatives (XSS, SQLi, path traversal, command injection) avant qu'elles n'atteignent le serveur web cible.
 
-## 🧱 Architecture
-* **WAF (Proxy)** : Écoute sur le port `8080`.
-* **Serveur Web (Cible)** : Fonctionne sur le port `8000`.
-* **Flux** : `Client` ➔ `WAF (Analyse)` ➔ `Serveur Web`.
+## Architecture
 
-
-
-## 🚀 Fonctionnalités
-* **Filtrage de contenu** : Blocage automatique des patterns suspects : `<script>`, `../`, `OR 1=1`, `admin`.
-* **Multiplexage (`select`)** : Gestion simultanée des flux entrant (client) et sortant (serveur).
-* **Réponse de sécurité** : Envoi d'une page `403 Forbidden` en cas d'attaque détectée.
-
----
-
-## 🛠️ Compilation
-```bash
-make
+```
+[Client HTTP] ──► [WAF :8080] ──► [Serveur web :8888]
+                      │
+                      │ TCP :9091
+                      ▼
+               [LogServer :9091]──► waf.log
+                      │
+                      │ HTTP :9090
+                      ▼
+               [Navigateur — logs en direct]
 ```
 
-Pour recompiler un binaire précis :
-```bash
-make waf
-make webserver
-make c_ok
-make c_xss
-make c_sql
+```
+mini-waf/
+├── Makefile
+├── src/
+│   ├── waf.c           ← proxy principal (pthreads + relay select)
+│   ├── filter.c / .h   ← moteur de filtrage (patterns + règles externes)
+│   ├── logger.c / .h   ← envoi des logs au logserver via TCP
+│   ├── logserver.c     ← serveur de log : écrit waf.log + interface web SSE
+│   ├── server.c        ← serveur web minimal (port 8888)
+│   └── client.c        ← client HTTP avec args CLI
+├── rules/
+│   ├── simple_patterns.txt   ← mots-clés supplémentaires
+│   └── blocked_urls.txt      ← URLs interdites
+├── tests/
+│   ├── test_legitimate.sh
+│   ├── test_attacks.sh
+│   └── test_concurrent.sh
+└── rapport/
+    └── rapport_mini_waf.md
 ```
 
-Pour nettoyer les exécutables :
+## Fonctionnalités
+
+- **Filtrage simple** : 8 patterns codés en dur (XSS, SQLi, traversal, command injection), insensibles à la casse.
+- **Filtrage avancé** : chargement de règles depuis `rules/*.txt` (lignes commençant par `#` ignorées).
+- **Concurrence** : un thread par connexion client (`pthread_create` + `pthread_detach`).
+- **Relay bidirectionnel** : `select()` pour transférer les données client ↔ serveur sans blocage.
+- **Journalisation centralisée** : le WAF envoie chaque entrée au logserver via TCP (port 9091) ; le logserver écrit dans `waf.log` en append — le fichier n'est jamais réécrit.
+- **Interface web en direct** : ouvrir `http://localhost:9090` pour observer les logs en temps réel (Server-Sent Events).
+- **Réponse 403** : `HTTP/1.0 403 Forbidden` envoyée au client en cas de blocage.
+
+## Compilation
+
 ```bash
-make clean
+make          # compile waf, server, client, logserver
+make clean    # supprime les binaires et waf.log
 ```
----
 
-## 🏃 Guide d'utilisation
+Flags : `gcc -Wall -Wextra -pthread` — aucun warning.
 
-### 1. Démarrer l'infrastructure
-Ouvrez au moins trois terminaux :
-1. **Terminal 1** : `./webserver` (Le serveur cible)
-2. **Terminal 2** : `./waf` (Le pare-feu)
+## Utilisation
 
-### 2. Lancer les tests
-**Option A : Via les clients de test dédiés**
-Dans le **Terminal 3**, lancez un client de test :
-- `./c_ok` pour une requête valide
-- `./c_xss` pour tester la détection XSS
-- `./c_sql` pour tester la détection d'injection SQL
+```bash
+# 1. Démarrer dans cet ordre (logserver en premier)
+./logserver &   # port 9091 (logs) + port 9090 (web)
+./server &      # port 8888
+./waf &         # port 8080
+sleep 1
 
-Les clients peuvent être lancés dans n'importe quel ordre et plusieurs terminaux sont possibles.
+# 2. Ouvrir l'interface web (optionnel)
+# http://localhost:9090  ← logs en direct dans le navigateur
 
-**Exemple de démo :**
-1. Lancer `./c_ok` : Le WAF affiche "Relais vers serveur" et le client reçoit la page.
-2. Lancer `./c_xss` : Le WAF affiche "🚫 ATTAQUE BLOQUÉE" et le client reçoit un `403 Forbidden`.
-3. Lancer les trois quasiment en même temps : Grâce à la boucle `while(1)` et aux sockets, le WAF traite chaque demande indépendamment.
+# 3. Lancer les tests
+bash tests/test_legitimate.sh
+bash tests/test_attacks.sh
+bash tests/test_concurrent.sh
 
+# 4. Consulter le log
+cat waf.log
+```
 
-**Option B : Via le navigateur**
-* **Normal** : `http://localhost:8080`
-* **Attaque** : `http://localhost:8080/?search=<script>`
+### Client en ligne de commande
 
----
+```bash
+# Requête GET
+./client <host> <port> <url>
 
-## 📊 Concepts Réseaux Appliqués
-* **Mode Connecté (TCP)** : Sockets `SOCK_STREAM`.
-* **Multi-rôle** : Le WAF est à la fois Serveur (accept) et Client (connect).
-* **I/O Multiplexing** : Utilisation de `select()` pour surveiller les deux sockets de chaque tunnel sans bloquer le programme.
+# Requête POST
+./client <host> <port> <url> <payload>
+
+# Exemples
+./client 127.0.0.1 8080 /                     # → 200
+./client 127.0.0.1 8080 "/?q=<script>alert(1)"# → 403
+./client 127.0.0.1 8080 /form "user=alice"     # → 200
+```
+
+Code de retour : `0` = 200 OK, `1` = 403 Forbidden, `2` = erreur réseau.
+
+## Règles de filtrage
+
+### Patterns codés en dur (`filter_simple`)
+
+| Motif | Attaque |
+|---|---|
+| `<script` | XSS |
+| `../` | Path traversal |
+| `OR 1=1` | SQL Injection |
+| `DROP TABLE` | SQL Injection |
+| `UNION SELECT` | SQL Injection |
+| `alert(` | XSS |
+| `javascript:` | XSS |
+| `exec(` | Command injection |
+
+### Règles externes (`filter_advanced`)
+
+- `rules/simple_patterns.txt` : `passwd`, `/etc/shadow`, `base64_decode`, `eval(`
+- `rules/blocked_urls.txt` : `/admin`, `/phpmyadmin`, `/.env`, `/wp-admin`
+
+Pour ajouter une règle : éditer le fichier correspondant et relancer le WAF.
+
+## Ports par défaut
+
+| Composant | Port | Rôle |
+|---|---|---|
+| WAF | 8080 | Proxy (clients → WAF) |
+| Serveur web | 8888 | Backend HTTP |
+| LogServer (log) | 9091 | Réception des entrées de log (TCP brut) |
+| LogServer (web) | 9090 | Interface web temps réel (HTTP + SSE) |
+
+## Concepts réseau appliqués
+
+- **TCP (SOCK_STREAM)** : connexions fiables client → WAF → serveur.
+- **Double rôle** : le WAF est serveur vis-à-vis du client et client vis-à-vis du backend.
+- **I/O Multiplexing** : `select()` dans la fonction `relay()` pour surveiller les deux sockets sans blocage.
+- **Pthreads** : un thread par connexion, détaché pour libération automatique des ressources.
+- **Mutex** : protection des écritures concurrentes dans `waf.log`.
