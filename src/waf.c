@@ -67,7 +67,7 @@ static void *handle_client(void *arg) {
     int   client_fd   = ca->client_fd;
     char  client_ip[INET_ADDRSTRLEN];
     strncpy(client_ip, ca->client_ip, INET_ADDRSTRLEN);
-    free(ca);  /* ca a été alloué dans main, on libère ici */
+    free(ca); 
 
     char request[BUF_SIZE] = {0};
     int  total = 0;
@@ -94,7 +94,7 @@ static void *handle_client(void *arg) {
         strncpy(first_line, request, sizeof(first_line) - 1);
     }
 
-    /* Analyse de la requête : doit-on la bloquer ? */
+    /* Analyse de la requête */
     if (should_block(request)) {
         /* Requête suspecte - on répond 403 sans contacter le backend */
         const char *resp =
@@ -146,7 +146,7 @@ int main(void) {
     int opt = 1;
     setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    /* Configuration de l'adresse d'écoute : toutes les interfaces, port WAF_PORT */
+    /* Configuration de l'adresse d'écoute */
     struct sockaddr_in waf_addr;
     memset(&waf_addr, 0, sizeof(waf_addr));
     waf_addr.sin_family      = AF_INET;
