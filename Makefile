@@ -5,7 +5,7 @@ TARGETS = waf server client logserver
 # Anciens binaires du prototype (conservés)
 LEGACY = c_ok c_xss c_sql webserver
 
-.PHONY: all legacy clean cleanlog
+.PHONY: all legacy clean cleanlog start stop
 
 all: $(TARGETS)
 
@@ -41,3 +41,20 @@ clean:
 
 cleanlog:
 	rm -f waf.log
+
+start: $(TARGETS)
+	@echo "Démarrage des services..."
+	@./logserver &
+	@sleep 0.5
+	@./server &
+	@sleep 0.5
+	@./waf &
+	@sleep 0.5
+	@echo "Services démarrés : logserver (9090/9091), server (8888), waf (8080)"
+
+stop:
+	@echo "Arrêt des services..."
+	@-pkill -f './waf' 2>/dev/null || true
+	@-pkill -f './server' 2>/dev/null || true
+	@-pkill -f './logserver' 2>/dev/null || true
+	@echo "Services arrêtés."
