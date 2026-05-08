@@ -13,12 +13,12 @@
 #define MAX_SSE   64     /* nombre maximum de navigateurs connectés en simultané */
 #define BUF_SIZE  4096
 
-/* ── Fichier de log ─────────────────────────────────────────────────────── */
+                /* Fichier de log  */
 
 static FILE           *log_fp    = NULL;
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/* Écriture d'une ligne dans waf.log — protégée par mutex car plusieurs threads peuvent logger */
+/* Écriture d'une ligne dans waf.log - protégée par mutex car plusieurs threads peuvent logger */
 static void write_log(const char *line) {
     pthread_mutex_lock(&log_mutex);
     if (log_fp) {
@@ -28,27 +28,27 @@ static void write_log(const char *line) {
     pthread_mutex_unlock(&log_mutex);
 }
 
-/* ── Clients SSE ────────────────────────────────────────────────────────── */
+                /* Clients SSE */
 
 /* Liste des fds des navigateurs en attente d'événements SSE */
 static int             sse_fds[MAX_SSE];
 static int             sse_count = 0;
 static pthread_mutex_t sse_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/* Enregistrement d'un nouveau client SSE dans la liste */
+/* Enregistrement d'un nouveau client dans la liste */
 static void add_sse_client(int fd) {
     pthread_mutex_lock(&sse_mutex);
     if (sse_count < MAX_SSE)
         sse_fds[sse_count++] = fd;
     else
-        close(fd);  /* liste pleine — on refuse le client */
+        close(fd);  /* liste pleine */
     pthread_mutex_unlock(&sse_mutex);
 }
 
 /*
- * broadcast_sse() — diffuse une ligne de log à tous les navigateurs connectés.
+ * broadcast_sse() - diffuse une ligne de log à tous les navigateurs connectés.
  *
- * Le format SSE est "data: <contenu>\n\n" — le navigateur reçoit ça via EventSource.
+ * Le format SSE est "data: <contenu>\n\n".
  * Si un client a fermé son onglet, send() échoue et on le retire de la liste.
  */
 static void broadcast_sse(const char *line) {
@@ -59,7 +59,7 @@ static void broadcast_sse(const char *line) {
     int i = 0;
     while (i < sse_count) {
         if (send(sse_fds[i], msg, mlen, MSG_NOSIGNAL) <= 0) {
-            /* Client déconnecté — on le retire et on compacte le tableau */
+            /* Client déconnecté  */
             close(sse_fds[i]);
             sse_fds[i] = sse_fds[--sse_count];
         } else {
@@ -69,13 +69,12 @@ static void broadcast_sse(const char *line) {
     pthread_mutex_unlock(&sse_mutex);
 }
 
-/* ── Réception des logs depuis le WAF (port 9091) ───────────────────────── */
+                /* Réception des logs depuis le WAF (port 9091) */
 
 /*
- * handle_log_connection() — lit les lignes envoyées par le WAF et les traite.
+* handle_log_connection() - lit les lignes envoyées par le WAF et les traite.
  *
  * Le WAF envoie du texte brut ligne par ligne. On reconstruit les lignes
- * octet par octet car recv() peut couper n'importe où dans le flux TCP.
  */
 static void *handle_log_connection(void *arg) {
     int fd = *(int *)arg;
@@ -89,7 +88,7 @@ static void *handle_log_connection(void *arg) {
     while ((n = recv(fd, buf, sizeof(buf), 0)) > 0) {
         for (int i = 0; i < n; i++) {
             if (buf[i] == '\n') {
-                /* Ligne complète reçue — on l'écrit et on la diffuse */
+                /* Ligne complète reçue - on l'écrit et on la diffuse */
                 line[llen] = '\0';
                 if (llen > 0) {
                     write_log(line);
@@ -134,9 +133,9 @@ static void *log_listener(void *arg) {
     return NULL;
 }
 
-/* ── Interface web (port 9090) ──────────────────────────────────────────── */
+                /* Interface web (port 9090) */
 
-/* Page HTML servie au navigateur — fond sombre, lignes colorées selon ALLOWED/BLOCKED */
+/* Page HTML servie au navigateur - fond sombre, lignes colorées selon ALLOWED/BLOCKED */
 static const char HTML[] =
     "<!DOCTYPE html><html><head>"
     "<meta charset=\"utf-8\">"
@@ -164,7 +163,7 @@ static const char HTML[] =
     "</script></body></html>";
 
 /*
- * serve_sse() — gère une connexion SSE depuis le navigateur.
+ * serve_sse() - gère une connexion SSE depuis le navigateur.
  *
  * Étapes :
  * 1. Envoie les headers HTTP qui indiquent au navigateur qu'il s'agit d'un flux SSE.
@@ -172,7 +171,6 @@ static const char HTML[] =
  * 3. Enregistre le fd dans la liste SSE pour recevoir les futurs événements en direct.
  */
 static void serve_sse(int fd) {
-    /* Headers SSE obligatoires — sans ça, le navigateur ne comprend pas le flux */
     const char *hdr =
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/event-stream\r\n"
@@ -182,7 +180,7 @@ static void serve_sse(int fd) {
         "\r\n";
     send(fd, hdr, strlen(hdr), MSG_NOSIGNAL);
 
-    /* Replay de l'historique : le navigateur voit les logs passés dès l'ouverture */
+    /* Replay de l'historique */
     FILE *f = fopen(LOG_FILE, "r");
     if (f) {
         char line[BUF_SIZE];
@@ -207,7 +205,7 @@ static void serve_sse(int fd) {
 
     /* Ajout du client dans la liste de diffusion en direct */
     add_sse_client(fd);
-    /* fd est maintenant géré par broadcast_sse — ne pas fermer ici */
+    /* fd est maintenant géré par broadcast_sse - ne pas fermer ici */
 }
 
 /* Traitement d'une connexion HTTP entrante (navigateur sur le port 9090) */
@@ -219,13 +217,13 @@ static void *handle_http_connection(void *arg) {
     recv(fd, buf, sizeof(buf) - 1, 0);  /* lecture de la requête HTTP */
 
     if (strstr(buf, "GET /events")) {
-        /* Le navigateur ouvre le flux SSE — connexion longue durée */
+        /* Le navigateur ouvre le flux SSE - connexion longue durée */
         serve_sse(fd);
         return NULL;
     }
 
     if (strstr(buf, "GET / ") || strstr(buf, "GET /\r")) {
-        /* Demande de la page principale — on sert le HTML */
+        /* Demande de la page principale - on sert le HTML */
         char resp[8192];
         int  len = snprintf(resp, sizeof(resp),
             "HTTP/1.1 200 OK\r\n"
@@ -272,10 +270,10 @@ static void *http_listener(void *arg) {
     return NULL;
 }
 
-/* ── Main ────────────────────────────────────────────────────────────────── */
+                /* Main */
 
 int main(void) {
-    /* Ouverture du fichier de log en mode append — les entrées s'accumulent entre les redémarrages */
+    /* Ouverture du fichier de log en mode append */
     log_fp = fopen(LOG_FILE, "a");
     if (!log_fp) { perror("fopen waf.log"); exit(1); }
 
@@ -284,7 +282,7 @@ int main(void) {
     pthread_create(&t1, NULL, log_listener, NULL);   /* reçoit les logs du WAF */
     pthread_create(&t2, NULL, http_listener, NULL);  /* sert l'interface web */
 
-    /* On attend indéfiniment — le logserver tourne jusqu'à interruption manuelle */
+    /* On attend indéfiniment - le logserver tourne jusqu'à interruption manuelle */
     pthread_join(t1, NULL);
     pthread_join(t2, NULL);
     return 0;
