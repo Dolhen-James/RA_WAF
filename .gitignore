@@ -53,3 +53,16 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Binaires du projet
+waf
+server
+client
+logserver
+webserver
+c_ok
+c_xss
+c_sql
+
+# Fichiers de log générés à l'exécution
+waf.log
