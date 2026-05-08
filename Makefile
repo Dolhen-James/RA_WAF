@@ -5,7 +5,7 @@ TARGETS = waf server client logserver
 # Anciens binaires du prototype (conservés)
 LEGACY = c_ok c_xss c_sql webserver
 
-.PHONY: all legacy clean
+.PHONY: all legacy clean cleanlog
 
 all: $(TARGETS)
 
@@ -37,4 +37,7 @@ c_sql: client_sql.c
 	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
-	rm -f $(TARGETS) $(LEGACY) waf.log
+	rm -f $(TARGETS) $(LEGACY)
+
+cleanlog:
+	rm -f waf.log

@@ -14,12 +14,19 @@
 #define SERVER_PORT 8888
 #define BUF_SIZE    8192
 
+/* Structure passée à chaque thread : le fd de la connexion + l'IP du client */
 typedef struct {
     int  client_fd;
     char client_ip[INET_ADDRSTRLEN];
 } client_args_t;
 
-/* Relay bidirectionnel avec select() jusqu'à fermeture d'un côté */
+/*
+ * relay() - transfert bidirectionnel entre le client et le serveur backend.
+ *
+ * On surveille les deux sockets avec select() : dès que l'un a des données
+ * à lire, on les copie vers l'autre. La boucle s'arrête quand l'un des deux
+ * côtés ferme la connexion (recv renvoie 0 ou une erreur).
+ */
 static void relay(int client_fd, int server_fd) {
     char buf[BUF_SIZE];
     int active = 1;
@@ -31,13 +38,17 @@ static void relay(int client_fd, int server_fd) {
         FD_SET(server_fd, &rfds);
         int maxfd = (client_fd > server_fd) ? client_fd : server_fd;
 
+        /* Attente bloquante : se réveille dès qu'un fd est prêt en lecture */
         if (select(maxfd + 1, &rfds, NULL, NULL, NULL) < 0) break;
 
+        /* Données reçues du client - on les envoie au backend */
         if (FD_ISSET(client_fd, &rfds)) {
             int n = recv(client_fd, buf, BUF_SIZE, 0);
             if (n <= 0) { active = 0; break; }
             if (send(server_fd, buf, n, 0) < 0) { active = 0; break; }
         }
+
+        /* Données reçues du backend - on les renvoie au client */
         if (FD_ISSET(server_fd, &rfds)) {
             int n = recv(server_fd, buf, BUF_SIZE, 0);
             if (n <= 0) { active = 0; break; }
@@ -46,26 +57,31 @@ static void relay(int client_fd, int server_fd) {
     }
 }
 
+/*
+ * handle_client() - traitement d'une connexion entrante (exécuté dans un thread).
+ *
+ * Lit la requête HTTP, décide de la bloquer ou de la relayer, log le résultat.
+ */
 static void *handle_client(void *arg) {
     client_args_t *ca = (client_args_t *)arg;
     int   client_fd   = ca->client_fd;
     char  client_ip[INET_ADDRSTRLEN];
     strncpy(client_ip, ca->client_ip, INET_ADDRSTRLEN);
-    free(ca);
+    free(ca);  /* ca a été alloué dans main, on libère ici */
 
     char request[BUF_SIZE] = {0};
     int  total = 0;
 
-    /* Lire la requête jusqu'à \r\n\r\n ou buffer plein */
+    /* Lecture de la requête HTTP jusqu'à la ligne vide (\r\n\r\n) qui marque la fin des headers */
     while (total < BUF_SIZE - 1) {
         int n = recv(client_fd, request + total, BUF_SIZE - 1 - total, 0);
-        if (n <= 0) goto done;
+        if (n <= 0) goto done;  /* connexion fermée ou erreur */
         total += n;
         request[total] = '\0';
         if (strstr(request, "\r\n\r\n") || strstr(request, "\n\n")) break;
     }
 
-    /* Extraire la première ligne */
+    /* Extraction de la première ligne (ex: "GET /index.html HTTP/1.0") pour le log */
     char first_line[512] = {0};
     char *nl = strchr(request, '\n');
     if (nl) {
@@ -78,7 +94,9 @@ static void *handle_client(void *arg) {
         strncpy(first_line, request, sizeof(first_line) - 1);
     }
 
+    /* Analyse de la requête : doit-on la bloquer ? */
     if (should_block(request)) {
+        /* Requête suspecte - on répond 403 sans contacter le backend */
         const char *resp =
             "HTTP/1.0 403 Forbidden\r\n"
             "Content-Type: text/plain\r\n\r\n"
@@ -88,7 +106,7 @@ static void *handle_client(void *arg) {
         goto done;
     }
 
-    /* Connexion au serveur backend */
+    /* Requête légitime - on ouvre une connexion vers le serveur backend */
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) goto done;
 
@@ -99,12 +117,13 @@ static void *handle_client(void *arg) {
     inet_pton(AF_INET, SERVER_HOST, &srv_addr.sin_addr);
 
     if (connect(server_fd, (struct sockaddr *)&srv_addr, sizeof(srv_addr)) < 0) {
+        /* Backend inaccessible - on abandonne silencieusement */
         perror("connect to backend");
         close(server_fd);
         goto done;
     }
 
-    /* Relayer la requête déjà lue puis le reste */
+    /* On retransmet la requête déjà lue, puis on relaie le reste de l'échange */
     send(server_fd, request, total, 0);
     logger_log(client_ip, first_line, 0);
     relay(client_fd, server_fd);
@@ -116,14 +135,18 @@ done:
 }
 
 int main(void) {
+    /* Initialisation du logger - connexion au logserver TCP */
     logger_init("waf.log");
 
+    /* Création du socket d'écoute principal */
     int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd < 0) { perror("socket"); exit(1); }
 
+    /* SO_REUSEADDR : permet de relancer le WAF juste après un arrêt sans attendre le TIME_WAIT */
     int opt = 1;
     setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
+    /* Configuration de l'adresse d'écoute : toutes les interfaces, port WAF_PORT */
     struct sockaddr_in waf_addr;
     memset(&waf_addr, 0, sizeof(waf_addr));
     waf_addr.sin_family      = AF_INET;
@@ -138,17 +161,20 @@ int main(void) {
     printf("Mini-WAF lance sur le port %d -> %s:%d\n",
            WAF_PORT, SERVER_HOST, SERVER_PORT);
 
+    /* Boucle principale : on accepte les connexions et on crée un thread par client */
     while (1) {
         struct sockaddr_in client_addr;
         socklen_t addr_len = sizeof(client_addr);
         int client_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &addr_len);
         if (client_fd < 0) { perror("accept"); continue; }
 
+        /* Préparation des arguments à passer au thread */
         client_args_t *ca = malloc(sizeof(client_args_t));
         if (!ca) { close(client_fd); continue; }
         ca->client_fd = client_fd;
         inet_ntop(AF_INET, &client_addr.sin_addr, ca->client_ip, INET_ADDRSTRLEN);
 
+        /* Lancement du thread - il sera libéré automatiquement grâce à pthread_detach */
         pthread_t tid;
         if (pthread_create(&tid, NULL, handle_client, ca) != 0) {
             perror("pthread_create");
